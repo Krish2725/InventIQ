@@ -1,0 +1,12 @@
+# Security
+.env
+
+# Virtual Environments
+venv/
+env/
+__pycache__/
+
+# Local Test Data
+*.csv
+*.xlsx
+*.xls
