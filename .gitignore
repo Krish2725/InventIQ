@@ -1,0 +1,21 @@
+# General & System
+.DS_Store
+Thumbs.db
+
+# Backend & Python
+backend/.env
+backend/venv/
+backend/env/
+**/__pycache__/
+*.pyc
+
+# Local Data Files
+*.xlsx
+*.xls
+*.csv
+generate_tests.py
+
+# Frontend & Node
+frontend/node_modules/
+frontend/dist/
+node_modules/
