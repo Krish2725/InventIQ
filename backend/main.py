@@ -7,6 +7,7 @@ import uuid
 import logging
 import warnings
 import json
+import asyncio
 import numpy as np  # <-- Added NumPy
 from google import genai
 from google.genai import errors
@@ -82,19 +83,30 @@ async def attempt_ai_column_mapping(raw_columns: list) -> dict:
     if not api_key:
         return heuristic_column_mapping(raw_columns)
         
-    aclient = genai.Client(api_key=api_key).aio
-    
     try:
-        response = await aclient.models.generate_content(
-            model="gemini-3.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json")
-        )
-        mapped = json.loads(response.text)
-        return mapped if mapped else heuristic_column_mapping(raw_columns)
+        aclient = genai.Client(api_key=api_key).aio
+        for attempt in range(3):
+            try:
+                response = await aclient.models.generate_content(
+                    model="gemini-3.5-flash",
+                    contents=prompt,
+                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                )
+                mapped = json.loads(response.text)
+                return mapped if mapped else heuristic_column_mapping(raw_columns)
+            except errors.APIError as e:
+                # Gemini can return transient 429/5xx responses during load spikes.
+                if e.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                    raise
+                delay = 0.5 * (2 ** attempt)
+                logger.warning(
+                    "AI column mapping returned HTTP %s; retrying in %.1fs (%d/2)",
+                    e.code, delay, attempt + 1
+                )
+                await asyncio.sleep(delay)
     except Exception as e:
         logger.warning(f"AI Mapping fallback triggered: {e}")
-        return heuristic_column_mapping(raw_columns) 
+        return heuristic_column_mapping(raw_columns)
 
 def run_inventory_ml(df: pd.DataFrame):
     """Executes clustering and forecasting math, returning structured dicts for React and Gemini."""
